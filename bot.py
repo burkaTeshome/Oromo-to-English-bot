@@ -1,7 +1,7 @@
 import logging
 import json
 import os
-import base64
+import uuid
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultArticle, InputTextMessageContent
 from telegram.ext import (
     Application,
@@ -85,7 +85,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(help_message, parse_mode="Markdown", reply_markup=reply_markup)
     context.user_data["state"] = "tutorial_menu_choice"
 
-# Fixed history function to avoid SyntaxError
 async def history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display the user's recent translations."""
     history = context.user_data.get("translation_history", [])
@@ -157,13 +156,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             })
             context.user_data["translation_history"] = history[-HISTORY_LIMIT:]
 
-            text_encoded = base64.urlsafe_b64encode(text.encode()).decode()
-            translated_encoded = base64.urlsafe_b64encode(translated_text.encode()).decode()
+            # Generate unique translation ID
+            translation_id = str(uuid.uuid4())
+            context.user_data.setdefault("translation_records", {})[translation_id] = {
+                "original_text": text,
+                "translated_text": translated_text,
+                "source_lang": source_lang,
+                "target_lang": target_lang
+            }
 
             keyboard = [
                 [
-                    InlineKeyboardButton("👍 Good", callback_data=f"rate_good_{source_lang}_{target_lang}_{text_encoded}_{translated_encoded}"),
-                    InlineKeyboardButton("👎 Poor", callback_data=f"rate_poor_{source_lang}_{target_lang}_{text_encoded}_{translated_encoded}")
+                    InlineKeyboardButton("👍 Good", callback_data=f"rate_good_{source_lang}_{target_lang}_{translation_id}_0"),
+                    InlineKeyboardButton("👎 Poor", callback_data=f"rate_poor_{source_lang}_{target_lang}_{translation_id}_0")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -221,9 +226,21 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         ])
         context.user_data["translation_history"] = history[-HISTORY_LIMIT:]
 
-        query_encoded = base64.urlsafe_b64encode(query.encode()).decode()
-        om_to_en_encoded = base64.urlsafe_b64encode(om_to_en["translatedText"].encode()).decode()
-        en_to_om_encoded = base64.urlsafe_b64encode(en_to_om["translatedText"].encode()).decode()
+        # Generate unique translation IDs
+        translation_id_om = str(uuid.uuid4())
+        translation_id_en = str(uuid.uuid4())
+        context.user_data.setdefault("translation_records", {})[translation_id_om] = {
+            "original_text": query,
+            "translated_text": om_to_en["translatedText"],
+            "source_lang": "om",
+            "target_lang": "en"
+        }
+        context.user_data.setdefault("translation_records", {})[translation_id_en] = {
+            "original_text": query,
+            "translated_text": en_to_om["translatedText"],
+            "source_lang": "en",
+            "target_lang": "om"
+        }
 
         results = [
             InlineQueryResultArticle(
@@ -235,8 +252,8 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 description=om_to_en["translatedText"],
                 reply_markup=InlineKeyboardMarkup([
                     [
-                        InlineKeyboardButton("👍 Good", callback_data=f"rate_good_om_en_{query_encoded}_{om_to_en_encoded}"),
-                        InlineKeyboardButton("👎 Poor", callback_data=f"rate_poor_om_en_{query_encoded}_{om_to_en_encoded}")
+                        InlineKeyboardButton("👍 Good", callback_data=f"rate_good_om_en_{translation_id_om}_0"),
+                        InlineKeyboardButton("👎 Poor", callback_data=f"rate_poor_om_en_{translation_id_om}_0")
                     ]
                 ])
             ),
@@ -249,8 +266,8 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 description=en_to_om["translatedText"],
                 reply_markup=InlineKeyboardMarkup([
                     [
-                        InlineKeyboardButton("👍 Good", callback_data=f"rate_good_en_om_{query_encoded}_{en_to_om_encoded}"),
-                        InlineKeyboardButton("👎 Poor", callback_data=f"rate_poor_en_om_{query_encoded}_{en_to_om_encoded}")
+                        InlineKeyboardButton("👍 Good", callback_data=f"rate_good_en_om_{translation_id_en}_0"),
+                        InlineKeyboardButton("👎 Poor", callback_data=f"rate_poor_en_om_{translation_id_en}_0")
                     ]
                 ])
             )
@@ -267,11 +284,19 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     username = query.from_user.username or "Unknown"
 
     try:
-        parts = data.split("_", 3)
-        rating, source_lang, target_lang, rest = parts
-        text_encoded, translated_encoded = rest.rsplit("_", 1)
-        original_text = base64.urlsafe_b64decode(text_encoded.encode()).decode()
-        translated_text = base64.urlsafe_b64decode(translated_encoded.encode()).decode()
+        parts = data.split("_")
+        if len(parts) != 5:
+            raise ValueError("Invalid callback_data format")
+        rating, source_lang, target_lang, translation_id, _ = parts
+
+        # Retrieve translation from context.user_data
+        translations = context.user_data.get("translation_records", {})
+        translation = translations.get(translation_id)
+        if not translation:
+            raise ValueError("Translation not found")
+
+        original_text = translation["original_text"]
+        translated_text = translation["translated_text"]
 
         feedback = f"User: {username} (ID: {user_id}), Rating: {rating}, Source: {source_lang}, Target: {target_lang}, Original: {original_text}, Translated: {translated_text}\n"
         try:
@@ -282,8 +307,12 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
         await query.answer(f"Thank you for your {rating.replace('rate_', '')} rating!")
         await query.edit_message_text(query.message.text + f"\n\nRated: {rating.replace('rate_', '')}")
+
+        # Clean up old translations
+        if len(translations) > 100:  # Limit stored translations
+            translations.pop(next(iter(translations)))
     except Exception as e:
-        logger.error(f"Rating error: {e}")
+        logger.error(f"Rating error: {e}, Callback data: {data}")
         await query.answer("Error processing your rating.")
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
