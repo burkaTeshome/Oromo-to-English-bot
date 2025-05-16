@@ -122,6 +122,10 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if update:
         await update.message.reply_text("An unexpected error occurred. Please try again.")
 
+async def health_check(request):
+    """Handle Render health check on root path."""
+    return web.Response(status=200, text="OK")
+
 async def webhook(request):
     """Handle incoming webhook updates."""
     app = request.app["bot"]
@@ -150,6 +154,8 @@ async def main():
     web_app = web.Application()
     web_app["bot"] = app
     web_app.router.add_post("/webhook", webhook)
+    web_app.router.add_get("/", health_check)  # Add root route for health check
+    web_app.router.add_head("/", health_check)  # Support HEAD requests for Render
 
     await app.initialize()
     await app.start()
