@@ -66,21 +66,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     reply_markup = ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(welcome_message, reply_markup=reply_markup)
     context.user_data["state"] = "awaiting_menu_choice"
-    # Initialize history if not present
     if "translation_history" not in context.user_data:
         context.user_data["translation_history"] = []
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Provide help instructions and start an interactive tutorial."""
     help_message = (
-        "📚 *Afaan Oromo ↔ English Translator Bot Help*\n\n"
-        "This bot translates between Afaan Oromo and English. Here's how to use it:\n\n"
-        "1. *Menu Mode*: Use /start to see a menu. Choose 'Afaan Oromo to English' or 'English to Afaan Oromo', then enter text to translate.\n"
-        "2. *Inline Mode*: Type @YourBot <text> in any chat (e.g., @YourBot Salaam) to get translations.\n"
-        "3. *Rate Translations*: After each translation, click 👍 or 👎 to rate its quality.\n"
-        "4. *History*: Use /history to view your last 5 translations.\n"
-        "5. *Help*: Use /help to see this message again.\n\n"
-        "Let's try a tutorial! Please select a translation option to begin:"
+        "📚 Afaan Oromo ↔ English Translator Bot Help\n\n"
+        "This bot translates between Afaan Oromo and English. Here's how to use it:\n"
+        "- Menu Mode: Use /start to see a menu. Choose an option, then enter text.\n"
+        "- Inline Mode: Type @YourBot <text> in any chat (e.g., @YourBot Salaam).\n"
+        "- Rate Translations: Click 👍 or 👎 after translations to rate quality.\n"
+        "- History: Use /history to view your last 5 translations.\n"
+        "- Help: Use /help to see this message again.\n\n"
+        "Let's try a tutorial! Select a translation option:"
     )
     reply_markup = ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(help_message, parse_mode="Markdown", reply_markup=reply_markup)
@@ -93,7 +92,7 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("No translations yet. Try translating something first!")
         return
 
-    history_message = "📜 *Your Recent Translations* (up to 5):\n\n"
+    history_message = "📜 Your Recent Translations (up to 5):\n\n"
     for idx, entry in enumerate(history, 1):
         history_message += (
             f"{idx}. Original ({SUPPORTED_LANGUAGES[entry['source_lang']}]): {entry['original_text']}\n"
@@ -130,7 +129,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 "Please select a valid option from the menu:",
                 reply_markup=ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
             )
-            context.user_data["state"] = "awaiting_menu_choice"  # Reset state
+            context.user_data["state"] = "awaiting_menu_choice"
     elif user_state in ["awaiting_text", "tutorial_awaiting_text"]:
         is_tutorial = user_state == "tutorial_awaiting_text"
         source_lang = context.user_data.get("source_lang")
@@ -147,7 +146,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             result_text = f"Original ({SUPPORTED_LANGUAGES[source_lang]}): {text}\n"
             result_text += f"Translated ({SUPPORTED_LANGUAGES[target_lang]}): {translated_text}"
 
-            # Store in history
             history = context.user_data.get("translation_history", [])
             history.append({
                 "source_lang": source_lang,
@@ -158,11 +156,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             })
             context.user_data["translation_history"] = history[-HISTORY_LIMIT:]
 
-            # Encode texts for callback data
             text_encoded = base64.urlsafe_b64encode(text.encode()).decode()
             translated_encoded = base64.urlsafe_b64encode(translated_text.encode()).decode()
 
-            # Add rating buttons
             keyboard = [
                 [
                     InlineKeyboardButton("👍 Good", callback_data=f"rate_good_{source_lang}_{target_lang}_{text_encoded}_{translated_encoded}"),
@@ -172,14 +168,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(result_text, reply_markup=reply_markup)
 
-            # Tutorial continuation
             if is_tutorial:
                 tutorial_message = (
                     "Great! You translated a word. Now try these:\n"
-                    "1. Rate the translation using 👍 or 👎.\n"
-                    "2. Use /history to see your recent translations.\n"
-                    "3. Try inline mode by typing @YourBot Salaam in any chat.\n"
-                    "4. Use /start to return to the menu.\n\n"
+                    "- Rate the translation using 👍 or 👎.\n"
+                    "- Use /history to see your recent translations.\n"
+                    "- Try inline mode by typing @YourBot Salaam in any chat.\n"
+                    "- Use /start to return to the menu.\n\n"
                     "Tutorial complete! Use /help to repeat this guide."
                 )
                 await update.message.reply_text(tutorial_message)
@@ -188,7 +183,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             logger.error(f"Translation error: {e}")
             await update.message.reply_text("An error occurred during translation. Please try again.")
 
-        # Return to menu
         await update.message.reply_text(
             "Please select a translation option:",
             reply_markup=ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
@@ -207,7 +201,6 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         om_to_en = translator.translate(query, source_language="om", target_language="en")
         en_to_om = translator.translate(query, source_language="en", target_language="om")
 
-        # Store in history
         history = context.user_data.get("translation_history", [])
         history.extend([
             {
@@ -227,7 +220,6 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         ])
         context.user_data["translation_history"] = history[-HISTORY_LIMIT:]
 
-        # Encode texts for callback data
         query_encoded = base64.urlsafe_b64encode(query.encode()).decode()
         om_to_en_encoded = base64.urlsafe_b64encode(om_to_en["translatedText"].encode()).decode()
         en_to_om_encoded = base64.urlsafe_b64encode(en_to_om["translatedText"].encode()).decode()
@@ -316,7 +308,7 @@ async def main():
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
 
-    port = int(os.getenv("PORT", 10000))  # Default to 10000 for Render
+    port = int(os.getenv("PORT", 10000))
     logger.info(f"Starting webhook server on port {port}")
 
     app = Application.builder().token(token).build()
@@ -332,7 +324,7 @@ async def main():
     web_app = web.Application()
     web_app["bot"] = app
     web_app.router.add_post("/webhook", webhook)
-    web_app.router.add_route("*", "/", health_check)  # Handle GET, HEAD, etc. for health check
+    web_app.router.add_route("*", "/", health_check)
 
     await app.initialize()
     await app.start()
