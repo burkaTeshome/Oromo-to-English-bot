@@ -135,10 +135,11 @@ async def main():
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
 
-    # Initialize the Application with builder pattern
+    port = int(os.getenv("PORT", 10000))  # Default to 10000 for Render
+    logger.info(f"Starting webhook server on port {port}")
+
     app = Application.builder().token(token).build()
 
-    # Add handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("translate", translate))
     app.add_handler(CommandHandler("to_en", to_en))
@@ -146,20 +147,32 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_error_handler(error_handler)
 
-    # Set up aiohttp server
     web_app = web.Application()
     web_app["bot"] = app
     web_app.router.add_post("/webhook", webhook)
 
-    # Initialize and start the application
     await app.initialize()
     await app.start()
 
-    return web_app
+    return web_app, port
 
 if __name__ == "__main__":
     import asyncio
     from aiohttp import web
 
-    # Run the webhook server
-    web.run_app(asyncio.run(main()), host="0.0.0.0", port=int(os.getenv("PORT", 8443)))
+    async def start_server():
+        web_app, port = await main()
+        runner = web.AppRunner(web_app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        logger.info(f"Binding to port {port}")
+        await site.start()
+        logger.info(f"Server started on http://0.0.0.0:{port}/webhook")
+        await asyncio.Event().wait()
+
+    try:
+        asyncio.run(start_server())
+    except KeyboardInterrupt:
+        logger.info("Shutting down server")
+    except Exception as e:
+        logger.error(f"Server error: {e}")
