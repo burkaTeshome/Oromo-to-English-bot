@@ -154,8 +154,7 @@ async def main():
     web_app = web.Application()
     web_app["bot"] = app
     web_app.router.add_post("/webhook", webhook)
-    web_app.router.add_get("/", health_check)  # Add root route for health check
-    web_app.router.add_head("/", health_check)  # Support HEAD requests for Render
+    web_app.router.add_route("*", "/", health_check)  # Handle GET, HEAD, etc. for health check
 
     await app.initialize()
     await app.start()
@@ -182,3 +181,4 @@ if __name__ == "__main__":
         logger.info("Shutting down server")
     except Exception as e:
         logger.error(f"Server error: {e}")
+        raise
