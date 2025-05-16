@@ -59,9 +59,9 @@ HISTORY_LIMIT = 5
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a welcome message and display the translation menu."""
     welcome_message = (
-        "Welcome to the Afaan Oromo ↔ English Translator Bot!\n\n"
-        "Please select a translation option or use inline mode with @YourBot <text>.\n"
-        "Use /help for instructions or /history to view recent translations."
+        "Welcome to the Afaan Oromo - English Translator Bot!\n\n"
+        "Select a translation option or use inline mode with @YourBot <text>.\n"
+        "Use /help for instructions or /history for recent translations."
     )
     reply_markup = ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(welcome_message, reply_markup=reply_markup)
@@ -72,19 +72,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Provide help instructions and start an interactive tutorial."""
     help_message = (
-        "📚 Afaan Oromo ↔ English Translator Bot Help\n\n"
-        "This bot translates between Afaan Oromo and English. Here's how to use it:\n"
-        "- Menu Mode: Use /start to see a menu. Choose an option, then enter text.\n"
-        "- Inline Mode: Type @YourBot <text> in any chat (e.g., @YourBot Salaam).\n"
-        "- Rate Translations: Click 👍 or 👎 after translations to rate quality.\n"
+        "Afaan Oromo - English Translator Bot Help\n\n"
+        "This bot translates between Afaan Oromo and English:\n"
+        "- Menu Mode: Use /start, choose an option, enter text.\n"
+        "- Inline Mode: Type @YourBot <text> (e.g., @YourBot Salaam).\n"
+        "- Rate Translations: Click thumbs up or down after translations.\n"
         "- History: Use /history to view your last 5 translations.\n"
-        "- Help: Use /help to see this message again.\n\n"
-        "Let's try a tutorial! Select a translation option:"
+        "- Help: Use /help to see this message.\n\n"
+        "Try a tutorial! Select a translation option:"
     )
     reply_markup = ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(help_message, parse_mode="Markdown", reply_markup=reply_markup)
     context.user_data["state"] = "tutorial_menu_choice"
 
+# Fixed history function to avoid SyntaxError
 async def history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display the user's recent translations."""
     history = context.user_data.get("translation_history", [])
@@ -92,13 +93,13 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("No translations yet. Try translating something first!")
         return
 
-    history_message = "📜 Your Recent Translations (up to 5):\n\n"
+    history_message = "Your Recent Translations (up to 5):\n\n"
     for idx, entry in enumerate(history, 1):
-        history_message += (
-            f"{idx}. Original ({SUPPORTED_LANGUAGES[entry['source_lang']}]): {entry['original_text']}\n"
-            f"   Translated ({SUPPORTED_LANGUAGES[entry['target_lang']}]): {entry['translated_text']}\n"
-            f"   Time: {entry['timestamp']}\n\n"
-        )
+        source_lang = SUPPORTED_LANGUAGES[entry['source_lang']]
+        target_lang = SUPPORTED_LANGUAGES[entry['target_lang']]
+        history_message += f"{idx}. Original ({source_lang}): {entry['original_text']}\n"
+        history_message += f"   Translated ({target_lang}): {entry['translated_text']}\n"
+        history_message += f"   Time: {entry['timestamp']}\n\n"
     await update.message.reply_text(history_message, parse_mode="Markdown")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -111,17 +112,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if user_text == "Afaan Oromo to English":
             context.user_data["source_lang"] = "om"
             context.user_data["target_lang"] = "en"
-            prompt = "Please enter a word or sentence to translate from Afaan Oromo to English (e.g., 'Salaam'):"
+            prompt = "Enter a word or sentence to translate from Afaan Oromo to English (e.g., 'Salaam'):"
             if is_tutorial:
-                prompt += "\n\nTutorial: Enter a word like 'Salaam' to see how translations work!"
+                prompt += "\n\nTutorial: Try a word like 'Salaam' to see how it works!"
             await update.message.reply_text(prompt, reply_markup=ReplyKeyboardRemove())
             context.user_data["state"] = "awaiting_text" if not is_tutorial else "tutorial_awaiting_text"
         elif user_text == "English to Afaan Oromo":
             context.user_data["source_lang"] = "en"
             context.user_data["target_lang"] = "om"
-            prompt = "Please enter a word or sentence to translate from English to Afaan Oromo (e.g., 'Hello'):"
+            prompt = "Enter a word or sentence to translate from English to Afaan Oromo (e.g., 'Hello'):"
             if is_tutorial:
-                prompt += "\n\nTutorial: Enter a word like 'Hello' to see how translations work!"
+                prompt += "\n\nTutorial: Try a word like 'Hello' to see how it works!"
             await update.message.reply_text(prompt, reply_markup=ReplyKeyboardRemove())
             context.user_data["state"] = "awaiting_text" if not is_tutorial else "tutorial_awaiting_text"
         else:
