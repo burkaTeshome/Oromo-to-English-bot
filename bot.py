@@ -46,8 +46,9 @@ SUPPORTED_LANGUAGES = {
 
 # Menu options
 MENU_OPTIONS = [
-    ["Afaan Oromo to English"],
-    ["English to Afaan Oromo"],
+    ["🌐 Afaan Oromo to English", "🌐 English to Afaan Oromo"],
+    ["🔄 Restart (/start)", "📚 Help (/help)"],
+    ["🕰️ History (/history)"],
 ]
 
 # Feedback file
@@ -57,14 +58,17 @@ FEEDBACK_FILE = "/opt/render/project/src/feedback.log"
 HISTORY_LIMIT = 5
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a welcome message and display the translation menu."""
+    """Send a welcome message and display the enhanced menu."""
     welcome_message = (
-        "Welcome to the Afaan Oromo - English Translator Bot!\n\n"
-        "Select a translation option or use inline mode with @YourBot <text>.\n"
-        "Use /help for instructions or /history for recent translations."
+        "🌍 *Afaan Oromo - English Translator Bot* 🌍\n\n"
+        "Welcome! This bot translates between Afaan Oromo and English. Choose an option below:\n\n"
+        "- 🌐 Translate using menu or inline mode (@YourBot <text>)\n"
+        "- 📚 Get help with /help\n"
+        "- 🕰️ View recent translations with /history\n\n"
+        "Select an option:"
     )
     reply_markup = ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
+    await update.message.reply_text(welcome_message, parse_mode="Markdown", reply_markup=reply_markup)
     context.user_data["state"] = "awaiting_menu_choice"
     if "translation_history" not in context.user_data:
         context.user_data["translation_history"] = []
@@ -72,13 +76,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Provide help instructions and start an interactive tutorial."""
     help_message = (
-        "Afaan Oromo - English Translator Bot Help\n\n"
+        "📚 *Afaan Oromo - English Translator Bot Help* 📚\n\n"
         "This bot translates between Afaan Oromo and English:\n"
-        "- Menu Mode: Use /start, choose an option, enter text.\n"
-        "- Inline Mode: Type @YourBot <text> (e.g., @YourBot Salaam).\n"
-        "- Rate Translations: Click thumbs up or down after translations.\n"
-        "- History: Use /history to view your last 5 translations.\n"
-        "- Help: Use /help to see this message.\n\n"
+        "- 🌐 *Menu Mode*: Use /start, choose an option, enter text.\n"
+        "- 🚀 *Inline Mode*: Type @YourBot <text> (e.g., @YourBot Salaam).\n"
+        "- 👍 *Rate Translations*: Click thumbs up or down after translations.\n"
+        "- 🕰️ *History*: Use /history to view your last 5 translations.\n"
+        "- 📚 *Help*: Use /help to see this message.\n\n"
         "Try a tutorial! Select a translation option:"
     )
     reply_markup = ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
@@ -89,16 +93,16 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display the user's recent translations."""
     history = context.user_data.get("translation_history", [])
     if not history:
-        await update.message.reply_text("No translations yet. Try translating something first!")
+        await update.message.reply_text("🕰️ No translations yet. Try translating something first!")
         return
 
-    history_message = "Your Recent Translations (up to 5):\n\n"
+    history_message = "🕰️ *Your Recent Translations (up to 5)*:\n\n"
     for idx, entry in enumerate(history, 1):
         source_lang = SUPPORTED_LANGUAGES[entry['source_lang']]
         target_lang = SUPPORTED_LANGUAGES[entry['target_lang']]
-        history_message += f"{idx}. Original ({source_lang}): {entry['original_text']}\n"
-        history_message += f"   Translated ({target_lang}): {entry['translated_text']}\n"
-        history_message += f"   Time: {entry['timestamp']}\n\n"
+        history_message += f"{idx}. *Original* ({source_lang}): {entry['original_text']}\n"
+        history_message += f"   *Translated* ({target_lang}): {entry['translated_text']}\n"
+        history_message += f"   *Time*: {entry['timestamp']}\n\n"
     await update.message.reply_text(history_message, parse_mode="Markdown")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -108,25 +112,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if user_state in ["awaiting_menu_choice", "tutorial_menu_choice"]:
         is_tutorial = user_state == "tutorial_menu_choice"
-        if user_text == "Afaan Oromo to English":
+        if user_text == "🌐 Afaan Oromo to English":
             context.user_data["source_lang"] = "om"
             context.user_data["target_lang"] = "en"
-            prompt = "Enter a word or sentence to translate from Afaan Oromo to English (e.g., 'Salaam'):"
+            prompt = "🌐 Enter a word or sentence to translate from Afaan Oromo to English (e.g., 'Salaam'):"
             if is_tutorial:
-                prompt += "\n\nTutorial: Try a word like 'Salaam' to see how it works!"
-            await update.message.reply_text(prompt, reply_markup=ReplyKeyboardRemove())
+                prompt += "\n\n📚 *Tutorial*: Try a word like 'Salaam' to see how it works!"
+            await update.message.reply_text(prompt, parse_mode="Markdown", reply_markup=ReplyKeyboardRemove())
             context.user_data["state"] = "awaiting_text" if not is_tutorial else "tutorial_awaiting_text"
-        elif user_text == "English to Afaan Oromo":
+        elif user_text == "🌐 English to Afaan Oromo":
             context.user_data["source_lang"] = "en"
             context.user_data["target_lang"] = "om"
-            prompt = "Enter a word or sentence to translate from English to Afaan Oromo (e.g., 'Hello'):"
+            prompt = "🌐 Enter a word or sentence to translate from English to Afaan Oromo (e.g., 'Hello'):"
             if is_tutorial:
-                prompt += "\n\nTutorial: Try a word like 'Hello' to see how it works!"
-            await update.message.reply_text(prompt, reply_markup=ReplyKeyboardRemove())
+                prompt += "\n\n📚 *Tutorial*: Try a word like 'Hello' to see how it works!"
+            await update.message.reply_text(prompt, parse_mode="Markdown", reply_markup=ReplyKeyboardRemove())
             context.user_data["state"] = "awaiting_text" if not is_tutorial else "tutorial_awaiting_text"
+        elif user_text == "🔄 Restart (/start)":
+            await start(update, context)
+        elif user_text == "📚 Help (/help)":
+            await help_command(update, context)
+        elif user_text == "🕰️ History (/history)":
+            await history(update, context)
         else:
             await update.message.reply_text(
-                "Please select a valid option from the menu:",
+                "❌ Please select a valid option from the menu:",
                 reply_markup=ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
             )
             context.user_data["state"] = "awaiting_menu_choice"
@@ -137,14 +147,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         text = user_text
 
         if not text:
-            await update.message.reply_text("Please enter a non-empty word or sentence to translate.")
+            await update.message.reply_text("❌ Please enter a non-empty word or sentence to translate.")
             return
 
         try:
             result = translator.translate(text, source_language=source_lang, target_language=target_lang)
             translated_text = result["translatedText"]
-            result_text = f"Original ({SUPPORTED_LANGUAGES[source_lang]}): {text}\n"
-            result_text += f"Translated ({SUPPORTED_LANGUAGES[target_lang]}): {translated_text}"
+            result_text = f"*Original* ({SUPPORTED_LANGUAGES[source_lang]}): {text}\n"
+            result_text += f"*Translated* ({SUPPORTED_LANGUAGES[target_lang]}): {translated_text}"
 
             history = context.user_data.get("translation_history", [])
             history.append({
@@ -172,25 +182,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(result_text, reply_markup=reply_markup)
+            await update.message.reply_text(result_text, parse_mode="Markdown", reply_markup=reply_markup)
 
             if is_tutorial:
                 tutorial_message = (
-                    "Great! You translated a word. Now try these:\n"
-                    "- Rate the translation using 👍 or 👎.\n"
-                    "- Use /history to see your recent translations.\n"
-                    "- Try inline mode by typing @YourBot Salaam in any chat.\n"
-                    "- Use /start to return to the menu.\n\n"
-                    "Tutorial complete! Use /help to repeat this guide."
+                    "🎉 *Great!* You translated a word. Now try these:\n"
+                    "- 👍 Rate the translation using thumbs up or down.\n"
+                    "- 🕰️ Use /history to see your recent translations.\n"
+                    "- 🚀 Try inline mode by typing @YourBot Salaam in any chat.\n"
+                    "- 🔄 Use /start to return to the menu.\n\n"
+                    "📚 *Tutorial complete!* Use /help to repeat this guide."
                 )
-                await update.message.reply_text(tutorial_message)
+                await update.message.reply_text(tutorial_message, parse_mode="Markdown")
 
         except Exception as e:
             logger.error(f"Translation error: {e}")
-            await update.message.reply_text("An error occurred during translation. Please try again.")
+            await update.message.reply_text("❌ An error occurred during translation. Please try again.")
 
         await update.message.reply_text(
-            "Please select a translation option:",
+            "🌍 Please select a translation option:",
             reply_markup=ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
         )
         context.user_data["state"] = "awaiting_menu_choice"
@@ -247,7 +257,8 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 id="om_to_en",
                 title="Afaan Oromo to English",
                 input_message_content=InputTextMessageContent(
-                    f"Original (Afaan Oromo): {query}\nTranslated (English): {om_to_en['translatedText']}"
+                    f"*Original* (Afaan Oromo): {query}\n*Translated* (English): {om_to_en['translatedText']}",
+                    parse_mode="Markdown"
                 ),
                 description=om_to_en["translatedText"],
                 reply_markup=InlineKeyboardMarkup([
@@ -261,7 +272,8 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 id="en_to_om",
                 title="English to Afaan Oromo",
                 input_message_content=InputTextMessageContent(
-                    f"Original (English): {query}\nTranslated (Afaan Oromo): {en_to_om['translatedText']}"
+                    f"*Original* (English): {query}\n*Translated* (Afaan Oromo): {en_to_om['translatedText']}",
+                    parse_mode="Markdown"
                 ),
                 description=en_to_om["translatedText"],
                 reply_markup=InlineKeyboardMarkup([
@@ -306,7 +318,7 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             logger.error(f"Failed to write to feedback file: {e}")
 
         await query.answer(f"Thank you for your {rating.replace('rate_', '')} rating!")
-        await query.edit_message_text(query.message.text + f"\n\nRated: {rating.replace('rate_', '')}")
+        await query.edit_message_text(query.message.text + f"\n\n*Rated*: {rating.replace('rate_', '')}", parse_mode="Markdown")
 
         # Clean up old translations
         if len(translations) > 100:  # Limit stored translations
@@ -319,7 +331,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Log errors caused by updates."""
     logger.error(f"Update {update} caused error {context.error}")
     if update and update.message:
-        await update.message.reply_text("An unexpected error occurred. Please try again.")
+        await update.message.reply_text("❌ An unexpected error occurred. Please try again.")
 
 async def health_check(request):
     """Handle Render health check on root path."""
