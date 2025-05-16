@@ -91,7 +91,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display the user's recent translations."""
+    logger.info("Entering history function")  # Debug logging
     history = context.user_data.get("translation_history", [])
+    logger.info(f"Retrieved history: {history}")  # Debug logging
     if not history:
         await update.message.reply_text("🕰️ No translations yet. Try translating something first!")
         return
@@ -104,7 +106,6 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         history_message += f"   *Translated* ({target_lang}): {entry['translated_text']}\n"
         history_message += f"   *Time*: {entry['timestamp']}\n\n"
     await update.message.reply_text(history_message, parse_mode="Markdown")
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle user messages based on the current state."""
     user_text = update.message.text.strip()
@@ -297,15 +298,19 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     try:
         parts = data.split("_")
+        logger.info(f"Callback data parts: {parts}")  # Debug logging
         if len(parts) != 5:
-            raise ValueError("Invalid callback_data format")
-        rating, source_lang, target_lang, translation_id, _ = parts
+            raise ValueError(f"Invalid callback_data format, got {len(parts)} parts")
+        rating = parts[0]  # e.g., rate_good
+        source_lang = parts[1]  # e.g., om
+        target_lang = parts[2]  # e.g., en
+        translation_id = parts[3]  # e.g., d6f29e05-b808-49c1-baa5-e4689c4903e9
 
         # Retrieve translation from context.user_data
         translations = context.user_data.get("translation_records", {})
         translation = translations.get(translation_id)
         if not translation:
-            raise ValueError("Translation not found")
+            raise ValueError(f"Translation not found for ID: {translation_id}")
 
         original_text = translation["original_text"]
         translated_text = translation["translated_text"]
@@ -326,7 +331,6 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     except Exception as e:
         logger.error(f"Rating error: {e}, Callback data: {data}")
         await query.answer("Error processing your rating.")
-
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log errors caused by updates."""
     logger.error(f"Update {update} caused error {context.error}")
