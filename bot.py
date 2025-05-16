@@ -131,11 +131,11 @@ async def webhook(request):
 
 async def main():
     """Set up and start the bot with webhook."""
-    # Initialize the bot
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
 
+    # Initialize the Application with builder pattern
     app = Application.builder().token(token).build()
 
     # Add handlers
@@ -151,11 +151,10 @@ async def main():
     web_app["bot"] = app
     web_app.router.add_post("/webhook", webhook)
 
-    # Start the application
+    # Initialize and start the application
     await app.initialize()
     await app.start()
 
-    # Return the web app to be run by Render
     return web_app
 
 if __name__ == "__main__":
