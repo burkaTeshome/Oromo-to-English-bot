@@ -1,7 +1,7 @@
 import logging
 import json
 import os
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize the Google Cloud Translate client with JSON credentials
+# Initialize the Google Cloud Translate client
 credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
 if not credentials_json:
     raise ValueError("GOOGLE_CREDENTIALS_JSON environment variable not set")
@@ -36,102 +36,76 @@ except json.JSONDecodeError as e:
 
 # Define supported languages
 SUPPORTED_LANGUAGES = {
-    "om": "Afaan Oromo",  # Google uses 'om' for Afaan Oromo
+    "om": "Afaan Oromo",
     "en": "English",
 }
 
+# Menu options
+MENU_OPTIONS = [
+    ["Afaan Oromo to English"],
+    ["English to Afaan Oromo"],
+]
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a welcome message when the /start command is issued."""
+    """Send a welcome message and display the translation menu."""
     welcome_message = (
         "Welcome to the Afaan Oromo ↔ English Translator Bot!\n\n"
-        "To translate, send a message in this format:\n"
-        "/translate <source_lang> <target_lang> <text>\n"
-        "Example: /translate om en Salaam\n"
-        "Supported languages:\n"
-        "- om: Afaan Oromo\n"
-        "- en: English\n\n"
-        "Or simply send text, and I'll ask for translation directions."
+        "Please select a translation option:"
     )
-    await update.message.reply_text(welcome_message)
+    reply_markup = ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
+    context.user_data["state"] = "awaiting_menu_choice"
 
-async def translate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle the /translate command."""
-    try:
-        args = context.args
-        if len(args) < 3:
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle user messages based on the current state."""
+    user_text = update.message.text
+    user_state = context.user_data.get("state", "awaiting_menu_choice")
+
+    if user_state == "awaiting_menu_choice":
+        if user_text == "Afaan Oromo to English":
+            context.user_data["source_lang"] = "om"
+            context.user_data["target_lang"] = "en"
             await update.message.reply_text(
-                "Please use the format: /translate <source_lang> <target_lang> <text>\n"
-                "Example: /translate om en Salaam"
+                "Please enter the word or sentence to translate from Afaan Oromo to English:",
+                reply_markup=ReplyKeyboardRemove()
             )
-            return
-
-        source_lang = args[0].lower()
-        target_lang = args[1].lower()
-        text = " ".join(args[2:])
-
-        if source_lang not in SUPPORTED_LANGUAGES or target_lang not in SUPPORTED_LANGUAGES:
+            context.user_data["state"] = "awaiting_text"
+        elif user_text == "English to Afaan Oromo":
+            context.user_data["source_lang"] = "en"
+            context.user_data["target_lang"] = "om"
             await update.message.reply_text(
-                "Unsupported language. Use 'om' for Afaan Oromo or 'en' for English."
+                "Please enter the word or sentence to translate from English to Afaan Oromo:",
+                reply_markup=ReplyKeyboardRemove()
             )
-            return
+            context.user_data["state"] = "awaiting_text"
+        else:
+            await update.message.reply_text(
+                "Please select a valid option from the menu:",
+                reply_markup=ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
+            )
+    elif user_state == "awaiting_text":
+        source_lang = context.user_data.get("source_lang")
+        target_lang = context.user_data.get("target_lang")
+        text = user_text
 
-        if not text:
-            await update.message.reply_text("Please provide text to translate.")
-            return
+        try:
+            result = translator.translate(text, source_language=source_lang, target_language=target_lang)
+            translated_text = result["translatedText"]
+            result_text = f"Original ({SUPPORTED_LANGUAGES[source_lang]}): {text}\n"
+            result_text += f"Translated ({SUPPORTED_LANGUAGES[target_lang]}): {translated_text}"
+            await update.message.reply_text(result_text)
+        except Exception as e:
+            logger.error(f"Translation error: {e}")
+            await update.message.reply_text("An error occurred during translation. Please try again.")
 
-        result = translator.translate(text, source_language=source_lang, target_language=target_lang)
-        translated_text = result["translatedText"]
-        result_text = f"Original ({SUPPORTED_LANGUAGES[source_lang]}): {text}\n"
-        result_text += f"Translated ({SUPPORTED_LANGUAGES[target_lang]}): {translated_text}"
-        await update.message.reply_text(result_text)
-
-    except Exception as e:
-        logger.error(f"Translation error: {e}")
-        await update.message.reply_text("An error occurred during translation. Please try again.")
-
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle plain text messages and ask for translation direction."""
-    text = update.message.text
-    context.user_data["pending_text"] = text
-    await update.message.reply_text(
-        "Please specify the translation direction:\n"
-        "1. Afaan Oromo to English: /to_en\n"
-        "2. English to Afaan Oromo: /to_om"
-    )
-
-async def to_en(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Translate stored text to English."""
-    text = context.user_data.get("pending_text")
-    if not text:
-        await update.message.reply_text("No text to translate. Please send some text first.")
-        return
-
-    try:
-        result = translator.translate(text, source_language="om", target_language="en")
-        translated_text = result["translatedText"]
-        result_text = f"Original (Afaan Oromo): {text}\nTranslated (English): {translated_text}"
-        await update.message.reply_text(result_text)
-        context.user_data.pop("pending_text", None)
-    except Exception as e:
-        logger.error(f"Translation error: {e}")
-        await update.message.reply_text("An error occurred during translation. Please try again.")
-
-async def to_om(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Translate stored text to Afaan Oromo."""
-    text = context.user_data.get("pending_text")
-    if not text:
-        await update.message.reply_text("No text to translate. Please send some text first.")
-        return
-
-    try:
-        result = translator.translate(text, source_language="en", target_language="om")
-        translated_text = result["translatedText"]
-        result_text = f"Original (English): {text}\nTranslated (Afaan Oromo): {translated_text}"
-        await update.message.reply_text(result_text)
-        context.user_data.pop("pending_text", None)
-    except Exception as e:
-        logger.error(f"Translation error: {e}")
-        await update.message.reply_text("An error occurred during translation. Please try again.")
+        # Return to menu
+        await update.message.reply_text(
+            "Please select a translation option:",
+            reply_markup=ReplyKeyboardMarkup(MENU_OPTIONS, one_time_keyboard=True, resize_keyboard=True)
+        )
+        context.user_data["state"] = "awaiting_menu_choice"
+        context.user_data.pop("source_lang", None)
+        context.user_data.pop("target_lang", None)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log errors caused by updates."""
@@ -162,10 +136,7 @@ async def main():
     app = Application.builder().token(token).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("translate", translate))
-    app.add_handler(CommandHandler("to_en", to_en))
-    app.add_handler(CommandHandler("to_om", to_om))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_error_handler(error_handler)
 
     web_app = web.Application()
