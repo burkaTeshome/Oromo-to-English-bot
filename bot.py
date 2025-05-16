@@ -1,4 +1,6 @@
 import logging
+import json
+import os
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -8,8 +10,8 @@ from telegram.ext import (
     ContextTypes,
 )
 from google.cloud import translate_v2 as translate
-import os
-from aiohttp import web
+from google.auth.credentials import Credentials
+from google.oauth2 import service_account
 
 # Set up logging
 logging.basicConfig(
@@ -17,9 +19,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize the Google Cloud Translate client
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_CREDENTIALS_JSON")
-translator = translate.Client()
+# Initialize the Google Cloud Translate client with JSON credentials
+credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+if not credentials_json:
+    raise ValueError("GOOGLE_CREDENTIALS_JSON environment variable not set")
+
+try:
+    credentials_info = json.loads(credentials_json)
+    credentials = service_account.Credentials.from_service_account_info(
+        credentials_info,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+    translator = translate.Client(credentials=credentials)
+except json.JSONDecodeError as e:
+    raise ValueError(f"Invalid GOOGLE_CREDENTIALS_JSON format: {e}")
 
 # Define supported languages
 SUPPORTED_LANGUAGES = {
